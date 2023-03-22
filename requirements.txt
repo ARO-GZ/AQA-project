@@ -1,0 +1,8 @@
+networkx
+dwave-ocean-sdk
+numpy
+scipy
+opt-einsum
+matplotlib
+quimb
+autoray
