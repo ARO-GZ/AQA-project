@@ -61,6 +61,27 @@ class GraphPartition():
 		self.B = self.get_B_matrix()
 		self.S = self.get_constraint_matrix()
 
+		# if self.is_sparse:
+		# 	self.S = self.sparse_constraint()
+		# 	self.M = self.sparse_mod_mat()
+		# else:
+		# 	self.S = self.constraint()
+		# 	self.M = self.mod_mat()
+
+	# def constraint(self):
+	# 	n = self.G.number_of_nodes()
+
+	# 	if self.k == 2:
+	# 		return np.zeros((n,n))
+		
+	# 	# Contraint
+	# 	Z = Z_mats(n,self.k)
+	# 	S = np.zeros((n*self.k,n*self.k))
+	# 	ones = np.ones((n*self.k,n*self.k))
+
+	# 	for i in range(n):
+	# 		S += Z[i]@ones@Z[i]-2*Z[i]
+	# 	return S
 	
 	def get_M2(self):
 		A_rows = scp_sp.csr_matrix.sum(self.A,0).reshape(-1,1) # 1xn matrix
@@ -126,7 +147,7 @@ class GraphPartition():
 
 	def get_modularity(self,x):
 		mod = float(x@(self.get_M())@x)*2/self.M2
-		if self.k == 2:
+		if k == 2:
 			return mod
 		else:
 			return mod/2
@@ -177,8 +198,6 @@ class ClassicalGraphPartition():
 	def eval_mod(self, communities):
 		mod = modularity(self.G, communities)
 		return mod
-
-
 
 if __name__ == "__main__":
 	pass

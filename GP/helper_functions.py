@@ -207,9 +207,9 @@ def binary_partition_to_community(nodes, x):
 			List of communities
 	"""
 	if len(x) == len(nodes):
-		x_mat = np.zeros((len(nodes), 2))
-		x_mat[:,0] = x
-		x_mat[:,1] = 1-x
+		x_mat = np.zeros((2, len(nodes)))
+		x_mat[0,:] = x
+		x_mat[1, :] = 1-x
 	else:
 		x_mat = x.reshape(-1, len(nodes))
 	k = x_mat.shape[0]
