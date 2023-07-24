@@ -170,6 +170,58 @@ def tn_to_graph(tn):
 
 	return G
 
+def random_binary_partition(N, k):
+	"""
+	Generate a random partition of n nodes into k communities
+
+	Args:
+		n: int
+			Number of nodes
+		k: int
+			Number of communities
+
+	Returns:
+		x: np.ndarray
+			Partition of n nodes into k communities
+	"""
+	if k == 2:
+		x = np.random.randint(2, size=N)
+	else:
+		x = np.zeros((k*N))
+		for i in range(N):
+			x[i+N*np.random.randint(0,k)] = 1
+	return x
+
+def binary_partition_to_community(nodes, x):
+	"""
+	Convert a binary partition to a list of communities
+
+	Args:
+		nodes: list
+			List of nodes
+		x: np.ndarray
+			Binary partition of nodes
+
+	Returns:
+		communities: list
+			List of communities
+	"""
+	if len(x) == len(nodes):
+		x_mat = np.zeros((2, len(nodes)))
+		x_mat[0,:] = x
+		x_mat[1, :] = 1-x
+	else:
+		x_mat = x.reshape(-1, len(nodes))
+	k = x_mat.shape[0]
+	communities = [set() for _ in range(k)]
+	for i, node in enumerate(nodes):
+		for j in range(k):
+			if x_mat[j,i] == 1:
+				communities[j].add(node)
+
+	return communities
+
+
 def bin_to_dec_partition(arr, n):
 
 	assert isinstance(arr, np.ndarray)

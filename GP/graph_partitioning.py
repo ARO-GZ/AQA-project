@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.sparse as scp_sp
-from GP.helper_functions import Z_mats, Z_mats_sp, group_solution
+from GP.helper_functions import Z_mats, Z_mats_sp, group_solution, bin_to_dec_partition
 from dwave.system import DWaveSampler, EmbeddingComposite, LeapHybridSampler
 import neal 
 import networkx as nx
@@ -47,36 +47,52 @@ class GraphPartition():
 		get_modularity(x)
 			Computes the modularity given the partition x
 	"""
-	def __init__(self, G:nx.Graph=None, k:int = None, is_sparse:bool =False):
+	def __init__(self, G:nx.Graph=None, k:int = None, is_sparse:bool =True):
 
 		if G == None or k== None:
 			raise ValueError('Please provide a graph and number of communities')
 	
 		self.is_sparse = is_sparse
 		self.G = G
+		assert (2 <= k <= self.G.number_of_nodes()) and isinstance(k, int), "k must be between 2 and the number of nodes in the graph"
 		self.k = k
-		self.M = self.mod_mat()
+		self.A = nx.adjacency_matrix(self.G)
+		self.M2 = self.get_M2()
+		self.B = self.get_B_matrix()
+		self.S = self.get_constraint_matrix()
 
-		if self.is_sparse:
-			self.S = self.sparse_constraint()
-			self.M = self.sparse_mod_mat()
-		else:
-			self.S = self.constraint()
-			self.M = self.mod_mat()
+		# if self.is_sparse:
+		# 	self.S = self.sparse_constraint()
+		# 	self.M = self.sparse_mod_mat()
+		# else:
+		# 	self.S = self.constraint()
+		# 	self.M = self.mod_mat()
 
-	def constraint(self):
-		n = self.G.number_of_nodes()
-		# Contraint
-		Z = Z_mats(n,self.k)
-		S = np.zeros((n*self.k,n*self.k))
-		ones = np.ones((n*self.k,n*self.k))
+	# def constraint(self):
+	# 	n = self.G.number_of_nodes()
 
-		for i in range(n):
-			S += Z[i]@ones@Z[i]-2*Z[i]
-		return S
+	# 	if self.k == 2:
+	# 		return np.zeros((n,n))
+		
+	# 	# Contraint
+	# 	Z = Z_mats(n,self.k)
+	# 	S = np.zeros((n*self.k,n*self.k))
+	# 	ones = np.ones((n*self.k,n*self.k))
+
+	# 	for i in range(n):
+	# 		S += Z[i]@ones@Z[i]-2*Z[i]
+	# 	return S
 	
-	def sparse_constraint(self):
+	def get_M2(self):
+		A_rows = scp_sp.csr_matrix.sum(self.A,0).reshape(-1,1) # 1xn matrix
+		M2 = A_rows.sum()
+		return M2
+	
+
+	def get_constraint_matrix(self):
 		n = self.G.number_of_nodes()
+		if self.k == 2:
+			return scp_sp.csr_matrix(np.zeros((n,n)))
 		# Contraint
 		Z = Z_mats_sp(n,self.k)
 		S = scp_sp.csr_matrix((n*self.k,n*self.k))
@@ -87,39 +103,29 @@ class GraphPartition():
 
 		return S
 
-	def mod_mat(self):
-		n = self.G.number_of_nodes()
-		M = np.zeros((n*self.k,n*self.k))
-		A = nx.adjacency_matrix(self.G)
-		A_rows = scp_sp.csr_matrix.sum(A,0) # 1xn matrix
-		M2 = scp_sp.csr_matrix.sum(A)
-
-		for i in range(n):
-			for j in range(n):
-				for m in range(self.k):
-					M[i+m*n,j+m*n] = 1/(M2)*(A[i,j]-(A_rows[0,i]*A_rows[0,j])/M2)
+	def get_B_matrix(self):
 		
-		return M
-	
-	def sparse_mod_mat(self):
-		n = self.G.number_of_nodes()
-		M = np.zeros((n,n))
-		A = nx.adjacency_matrix(self.G)
-		A_rows = scp_sp.csr_matrix.sum(A,0) # 1xn matrix
-		M2 = scp_sp.csr_matrix.sum(A)
-
-		for i in range(n):
-			for j in range(n):
-				M[i,j] = 1/(M2)*(A[i,j]-(A_rows[0,i]*A_rows[0,j])/M2)
-		
-		return scp_sp.block_diag(self.k*[M])
+		A_rows = scp_sp.csr_matrix.sum(self.A,0).reshape(-1,1) # 1xn matrix
+		g_i_g_j = A_rows@A_rows.T/self.M2
+		B = self.A - g_i_g_j
+		return B
 
 	def get_QUBO(self,pen):
-		if self.is_sparse:
-			QUBO = (-self.M+pen*self.S).todense() 
+
+		if self.k == 2:
+			return scp_sp.csr_matrix(self.get_M() + pen*self.S)
+	
 		else:
-			QUBO = -self.M+pen*self.S 
-		return QUBO
+			B_coo = scp_sp.coo_matrix(self.B)
+			return scp_sp.block_diag([B_coo]*self.k) + pen*self.S
+	
+	def get_M(self):
+		if self.k == 2:
+			return self.B
+		else:
+			B_coo = scp_sp.coo_matrix(self.B)
+			return scp_sp.block_diag([B_coo]*self.k)
+		
 
 	def quantum_solve(self,pen):
 		sampler = EmbeddingComposite(DWaveSampler())
@@ -140,7 +146,12 @@ class GraphPartition():
 		return sampleset	
 
 	def get_modularity(self,x):
-		return x@(self.M)@x
+		mod = float(x@(self.get_M())@x)*2/self.M2
+		if k == 2:
+			return mod
+		else:
+			return mod/2
+		
 
 
 class ClassicalGraphPartition():
@@ -187,3 +198,8 @@ class ClassicalGraphPartition():
 	def eval_mod(self, communities):
 		mod = modularity(self.G, communities)
 		return mod
+
+if __name__ == "__main__":
+	pass
+
+	
